@@ -1,7 +1,0 @@
-services:
-  web:
-    image: nginx:1.24
-    ports:
-      - "8080:80"
-  redis:
-    image: "redis:7.4.1-alpine"
