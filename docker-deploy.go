@@ -5,34 +5,36 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"strings"
 	"time"
 )
 
 const defaultProjectName = "zakkaya-deploy"
-const defaultUpdateFrequency = 30
+const defaultUpdateFrequencySeconds = 30
 
 var projectName string
 var updateFrequency time.Duration
-var updateFrequencySeconds int
 var apiEndpoint string
 var lastModified string
 var etag string
 
 func main () {
+	var f int
+
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
-	flag.IntVar(&updateFrequencySeconds, "i", defaultUpdateFrequency, "Update interval in seconds")
+	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
 
 	flag.Parse()
 
-	updateFrequency = time.Duration(updateFrequencySeconds) * time.Second
+	updateFrequency = time.Duration(f) * time.Second
 
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Printf("apiEndpoint not specified.\n\nUsage: docker-deploy [OPTIONS] http://.../docker-compose.yml\n")
+		fmt.Printf("apiEndpoint not specified.\n\nUsage: docker-deploy [OPTIONS] http://.../api/v1/\n")
 		return
 	}
 
@@ -54,7 +56,22 @@ func main () {
 func checkNewConfig () {
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", apiEndpoint, nil)
+	h, err := os.Hostname()
+
+	if err != nil {
+		h = "smartretail"
+	}
+
+	h = strings.Split(h, ".")[0]
+
+	u, err := url.JoinPath(apiEndpoint, h, "docker-compose.yml")
+
+	if err != nil {
+		fmt.Println("Error generating URL")
+		return
+	}
+
+	req, err := http.NewRequest("GET", u, nil)
 
 	if err != nil {
 		fmt.Println("Error creating HTTP request")
@@ -78,28 +95,34 @@ func checkNewConfig () {
 
 	fmt.Printf("HTTP/1.1 %d\n", res.StatusCode)
 
-	if res.StatusCode == 200 {
-		lastModified = res.Header.Get("Last-Modified")
-		etag = res.Header.Get("Etag")
-
-		f, err := os.CreateTemp("", "compose")
-		if err != nil {
-			fmt.Println("Couldn't create temp file")
-			return
-		}
-		defer os.Remove(f.Name())
-
-		io.Copy(f, res.Body)
-
-		runCompose(f.Name())
+	if res.StatusCode != 200 {
+		return
 	}
+
+	f, err := os.CreateTemp("", "compose")
+	if err != nil {
+		fmt.Println("Couldn't create temp file")
+		return
+	}
+	defer os.Remove(f.Name())
+
+	io.Copy(f, res.Body)
+
+	if runCompose(f.Name()) != nil {
+		fmt.Println("Problem running docker compose")
+		return
+	}
+
+	// If we were successful then save headers
+	lastModified = res.Header.Get("Last-Modified")
+	etag = res.Header.Get("Etag")
 }
 
-func runCompose(fileName string) {
-	cmd := exec.Command("docker-compose", "-p", "zakkaya-deploy", "-f", fileName, "up", "-d")
+func runCompose(fileName string) error {
+	cmd := exec.Command("docker", "compose", "-p", projectName, "-f", fileName, "up", "-d")
 	
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	cmd.Run()
+	return cmd.Run()
 }
