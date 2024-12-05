@@ -18,14 +18,25 @@ const defaultUpdateFrequencySeconds = 30
 var projectName string
 var updateFrequency time.Duration
 var apiEndpoint string
+var hostname string
 var lastModified string
 var etag string
 
 func main () {
 	var f int
 
+	// Default hostname 
+	h, err := os.Hostname()
+
+	if err != nil {
+		h = "smartretail"
+	}
+
+	h = strings.Split(h, ".")[0]
+
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
 	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
+	flag.StringVar(&hostname, "h", h, "Override hostname")
 
 	flag.Parse()
 
@@ -56,15 +67,7 @@ func main () {
 func checkNewConfig () {
 	client := &http.Client{}
 
-	h, err := os.Hostname()
-
-	if err != nil {
-		h = "smartretail"
-	}
-
-	h = strings.Split(h, ".")[0]
-
-	u, err := url.JoinPath(apiEndpoint, h, "docker-compose.yml")
+	u, err := url.JoinPath(apiEndpoint, hostname, "docker-compose.yml")
 
 	if err != nil {
 		fmt.Println("Error generating URL")
@@ -119,7 +122,7 @@ func checkNewConfig () {
 }
 
 func runCompose(fileName string) error {
-	cmd := exec.Command("docker", "compose", "-p", projectName, "-f", fileName, "up", "-d")
+	cmd := exec.Command("docker", "compose", "-p", projectName, "-f", fileName, "up", "-d", "--remove-orphans")
 	
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
