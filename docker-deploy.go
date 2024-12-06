@@ -45,7 +45,7 @@ func main () {
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Printf("apiEndpoint not specified.\n\nUsage: docker-deploy [OPTIONS] http://.../api/v1/\n")
+		fmt.Printf("Error: apiEndpoint not specified.\n\nUsage: docker-deploy [OPTIONS] http://.../api/v1/\n")
 		return
 	}
 
