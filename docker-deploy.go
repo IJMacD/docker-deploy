@@ -113,6 +113,11 @@ func checkNewConfig () {
 
 	if runCompose(f.Name()) != nil {
 		fmt.Println("Problem running docker compose")
+
+		// Clear out last modified and etag so that we can try to recover from an error if we're told to reapply last successful config
+		lastModified = ""
+		etag = ""
+
 		return
 	}
 
