@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 )
 
@@ -18,25 +16,14 @@ const defaultUpdateFrequencySeconds = 30
 var projectName string
 var updateFrequency time.Duration
 var apiEndpoint string
-var hostname string
 var lastModified string
 var etag string
 
 func main () {
 	var f int
 
-	// Default hostname 
-	h, err := os.Hostname()
-
-	if err != nil {
-		h = "smartretail"
-	}
-
-	h = strings.Split(h, ".")[0]
-
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
 	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
-	flag.StringVar(&hostname, "h", h, "Override hostname")
 
 	flag.Parse()
 
@@ -45,7 +32,12 @@ func main () {
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Printf("Error: apiEndpoint not specified.\n\nUsage: docker-deploy [OPTIONS] http://.../api/v1/\n")
+		fmt.Printf(`Error: apiEndpoint not specified.
+		
+Usage:
+	docker-deploy [OPTIONS] https://.../api/v1/machines/$(hostname -s)/docker-compose.yml
+	docker-deploy [OPTIONS] https://.../api/v1/fleets/default/docker-compose.yml
+`)
 		return
 	}
 
@@ -67,14 +59,7 @@ func main () {
 func checkNewConfig () {
 	client := &http.Client{}
 
-	u, err := url.JoinPath(apiEndpoint, hostname, "docker-compose.yml")
-
-	if err != nil {
-		fmt.Println("Error generating URL")
-		return
-	}
-
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequest("GET", apiEndpoint, nil)
 
 	if err != nil {
 		fmt.Println("Error creating HTTP request")
