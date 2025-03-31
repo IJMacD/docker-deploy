@@ -1,0 +1,12 @@
+[Unit]
+Description=Docker Deploy daemon
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/systemd/system/docker-deploy.service.env
+ExecStart=/usr/bin/docker-deploy https://dd.ijmacd.com/api/v1/fleets/$FLEET/docker-compose.yml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
