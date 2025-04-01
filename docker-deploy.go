@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,7 @@ const defaultUpdateFrequencySeconds = 30
 
 var projectName string
 var updateFrequency time.Duration
+var basicAuth string
 var apiEndpoint string
 var lastModified string
 var etag string
@@ -24,6 +26,7 @@ func main () {
 
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
 	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
+	flag.StringVar(&basicAuth, "http-basic", "", "HTTP Basic auth username:password")
 
 	flag.Parse()
 
@@ -32,12 +35,8 @@ func main () {
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Printf(`Error: apiEndpoint not specified.
-		
-Usage:
-	docker-deploy [OPTIONS] https://.../api/v1/machines/$(hostname -s)/docker-compose.yml
-	docker-deploy [OPTIONS] https://.../api/v1/fleets/default/docker-compose.yml
-`)
+		fmt.Printf(`Error: apiEndpoint not specified.`)
+		printUsage()
 		return
 	}
 
@@ -72,6 +71,15 @@ func checkNewConfig () {
 
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
+	}
+
+	if basicAuth != "" {
+		ss := strings.SplitN(basicAuth, ":", 2)
+		if len(ss) == 2 {
+			req.SetBasicAuth(ss[0], ss[1])
+		} else {
+			fmt.Println("Basic Auth: Expected <username>:<password>")
+		}
 	}
 
 	res, err := client.Do(req)
@@ -118,4 +126,12 @@ func runCompose(fileName string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+func printUsage () {
+	fmt.Print(`
+Usage:
+	docker-deploy [OPTIONS] https://.../api/v1/machines/$(hostname -s)/docker-compose.yml
+	docker-deploy [OPTIONS] https://.../api/v1/fleets/default/docker-compose.yml
+`);
 }
