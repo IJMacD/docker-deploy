@@ -18,15 +18,20 @@ var projectName string
 var updateFrequency time.Duration
 var basicAuth string
 var apiEndpoint string
+var noCache bool
+
 var lastModified string
 var etag string
 
 func main () {
 	var f int
 
+	h, _ := os.Hostname()
+
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
 	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
 	flag.StringVar(&basicAuth, "http-basic", "", "HTTP Basic auth username:password")
+	flag.BoolVar(&noCache, "no-cache", false, "Pass this flag to disable last-modified checks")
 
 	flag.Parse()
 
@@ -40,13 +45,28 @@ func main () {
 		return
 	}
 
+	if basicAuth != "" {
+		ss := strings.SplitN(basicAuth, ":", 2)
+		if len(ss) != 2 {
+			fmt.Println("Basic Auth: Expected <username>:<password>")
+		}
+	}
+
 	apiEndpoint = args[0]
+
+	// Placeholder replacements
+	apiEndpoint = strings.ReplaceAll(apiEndpoint, ":hostname", h)
 
 	checkNewConfig()
 
 	ticker := time.NewTicker(updateFrequency)
 	go func() {
 		for range ticker.C {
+			if (noCache) {
+				lastModified = ""
+				etag = ""
+			}
+
 			checkNewConfig()
 		}
 	}()
@@ -77,8 +97,6 @@ func checkNewConfig () {
 		ss := strings.SplitN(basicAuth, ":", 2)
 		if len(ss) == 2 {
 			req.SetBasicAuth(ss[0], ss[1])
-		} else {
-			fmt.Println("Basic Auth: Expected <username>:<password>")
 		}
 	}
 
