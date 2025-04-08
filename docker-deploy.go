@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const defaultProjectName = "zakkaya-deploy"
+const defaultProjectName = "docker-deploy"
 const defaultUpdateFrequencySeconds = 30
 
 var projectName string
@@ -23,15 +23,37 @@ var noCache bool
 var lastModified string
 var etag string
 
-func main () {
+func main() {
 	var f int
 
 	h, _ := os.Hostname()
 
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
 	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
-	flag.StringVar(&basicAuth, "http-basic", "", "HTTP Basic auth username:password")
 	flag.BoolVar(&noCache, "no-cache", false, "Pass this flag to disable last-modified checks")
+
+	flag.Usage = func() {
+		w := flag.CommandLine.Output()
+
+		fmt.Fprintf(w, `Usage:
+	%s [OPTIONS] <apiEndpoint>
+
+Example Endpoints:
+	https://.../api/v1/machines/$(hostname -s)/docker-compose.yml
+	https://.../api/v1/machines/:hostname/docker-compose.yml
+	https://.../api/v1/fleets/default/docker-comnpose.yml
+
+Placeholders:
+:hostname	Replaced with system hostname
+
+Environment:
+HTTP_BASIC	Basic Auth in the form of <username>:<password>
+
+Options:
+`, os.Args[0])
+
+		flag.PrintDefaults()
+	}
 
 	flag.Parse()
 
@@ -40,11 +62,13 @@ func main () {
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Printf(`Error: apiEndpoint not specified.`)
-		printUsage()
+		fmt.Println(`Error: apiEndpoint not specified.`)
+		flag.Usage()
 		return
 	}
 
+	// Check for auth env var
+	basicAuth = os.Getenv("HTTP_BASIC")
 	if basicAuth != "" {
 		ss := strings.SplitN(basicAuth, ":", 2)
 		if len(ss) != 2 {
@@ -62,11 +86,6 @@ func main () {
 	ticker := time.NewTicker(updateFrequency)
 	go func() {
 		for range ticker.C {
-			if (noCache) {
-				lastModified = ""
-				etag = ""
-			}
-
 			checkNewConfig()
 		}
 	}()
@@ -75,7 +94,7 @@ func main () {
 	<-make(chan struct{})
 }
 
-func checkNewConfig () {
+func checkNewConfig() {
 	client := &http.Client{}
 
 	req, err := http.NewRequest("GET", apiEndpoint, nil)
@@ -133,23 +152,17 @@ func checkNewConfig () {
 	}
 
 	// If we were successful then save headers
-	lastModified = res.Header.Get("Last-Modified")
-	etag = res.Header.Get("Etag")
+	if !noCache {
+		lastModified = res.Header.Get("Last-Modified")
+		etag = res.Header.Get("Etag")
+	}
 }
 
 func runCompose(fileName string) error {
 	cmd := exec.Command("docker", "compose", "-p", projectName, "-f", fileName, "up", "-d", "--remove-orphans")
-	
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
-}
-
-func printUsage () {
-	fmt.Print(`
-Usage:
-	docker-deploy [OPTIONS] https://.../api/v1/machines/$(hostname -s)/docker-compose.yml
-	docker-deploy [OPTIONS] https://.../api/v1/fleets/default/docker-compose.yml
-`);
 }

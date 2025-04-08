@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/systemd/system/docker-deploy.service.env
-ExecStart=/usr/bin/docker-deploy --http-basic=${HTTP_BASIC} ${API_ENDPOINT}
+ExecStart=/usr/bin/docker-deploy ${API_ENDPOINT}
 Restart=always
 
 [Install]
