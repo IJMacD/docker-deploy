@@ -19,6 +19,7 @@ var updateFrequency time.Duration
 var basicAuth string
 var apiEndpoint string
 var noCache bool
+var once bool
 
 var lastModified string
 var etag string
@@ -31,6 +32,7 @@ func main() {
 	flag.StringVar(&projectName, "p", defaultProjectName, "Project name")
 	flag.IntVar(&f, "i", defaultUpdateFrequencySeconds, "Update interval in seconds")
 	flag.BoolVar(&noCache, "no-cache", false, "Pass this flag to disable last-modified checks")
+	flag.BoolVar(&once, "once", false, "Only run once and then exit. Exit code will indicate success")
 
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
@@ -81,7 +83,14 @@ Options:
 	// Placeholder replacements
 	apiEndpoint = strings.ReplaceAll(apiEndpoint, ":hostname", h)
 
-	checkNewConfig()
+	ok := checkNewConfig()
+
+	if once {
+		if ok {
+			os.Exit(0)
+		}
+		os.Exit(1)
+	}
 
 	ticker := time.NewTicker(updateFrequency)
 	go func() {
@@ -94,14 +103,14 @@ Options:
 	<-make(chan struct{})
 }
 
-func checkNewConfig() {
+func checkNewConfig() bool {
 	client := &http.Client{}
 
 	req, err := http.NewRequest("GET", apiEndpoint, nil)
 
 	if err != nil {
 		fmt.Println("Error creating HTTP request")
-		return
+		return false
 	}
 
 	if lastModified != "" {
@@ -123,19 +132,24 @@ func checkNewConfig() {
 
 	if err != nil {
 		fmt.Println("HTTP request failed")
-		return
+		return false
 	}
 
 	fmt.Printf("HTTP/1.1 %d\n", res.StatusCode)
 
-	if res.StatusCode != 200 {
-		return
+	switch res.StatusCode {
+	case http.StatusOK:
+		// don't return
+	case http.StatusNotModified:
+		return true
+	default:
+		return false
 	}
 
 	f, err := os.CreateTemp("", "compose")
 	if err != nil {
 		fmt.Println("Couldn't create temp file")
-		return
+		return false
 	}
 	defer os.Remove(f.Name())
 
@@ -148,7 +162,7 @@ func checkNewConfig() {
 		lastModified = ""
 		etag = ""
 
-		return
+		return false
 	}
 
 	// If we were successful then save headers
@@ -156,6 +170,8 @@ func checkNewConfig() {
 		lastModified = res.Header.Get("Last-Modified")
 		etag = res.Header.Get("Etag")
 	}
+
+	return true
 }
 
 func runCompose(fileName string) error {
