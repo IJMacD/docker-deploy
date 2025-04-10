@@ -15,6 +15,7 @@ size=$(ls -l build/linux-$arch/docker-deploy | awk '{print int($5/1024)}')
 
 out_dir="build/${package_name}-${package_version}"
 
+rm -rf $out_dir
 mkdir -p $out_dir/DEBIAN/
 mkdir -p $out_dir/usr/bin
 
