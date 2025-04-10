@@ -131,7 +131,7 @@ func checkNewConfig() bool {
 	res, err := client.Do(req)
 
 	if err != nil {
-		fmt.Println("HTTP request failed")
+		fmt.Println("HTTP request failed: ", err.Error())
 		return false
 	}
 
